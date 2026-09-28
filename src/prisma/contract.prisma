@@ -1,55 +1,64 @@
 // use prisma-8
 
+// Better Auth Models
 model User {
-  id            String    @id
+  id            String   @id
   name          String
-  email         String    @unique
-  emailVerified Boolean
+  lastname      String?
+  phone         String?  @unique
+  phoneVerified Boolean  @default(false)
+  email         String   @unique
+  emailVerified Boolean  @default(false)
   image         String?
+  type          UserType @default(CUSTOMER)
   createdAt     TimestamptzString @default(now())
   updatedAt     temporal.updatedAtString()
 
-  sessions      Session[]
-  accounts      Account[]
+  sessions  Session[]
+  accounts  Account[]
+  addresses Address[]
+  roles     UserRole[]
+  orders    Order[]
+  tickets   SupportTicket[]
 }
 
 model Session {
-  id        String    @id
+  id        String   @id
   expiresAt TimestamptzString
-  token     String    @unique
+  token     String   @unique
   createdAt TimestamptzString @default(now())
   updatedAt TimestamptzString
   ipAddress String?
   userAgent String?
-
   userId    String
-  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId], map: "session_userId_idx")
 }
 
 model Account {
-  id                    String    @id
-  accountId             String
-  providerId            String
-  userId                String
-  accessToken           String?
-  refreshToken          String?
-  idToken               String?
-  accessTokenExpiresAt  TimestamptzString?
+  id                   String   @id
+  accountId            String
+  providerId           String
+  userId               String
+  accessToken          String?
+  refreshToken         String?
+  idToken              String?
+  accessTokenExpiresAt TimestamptzString?
   refreshTokenExpiresAt TimestamptzString?
-  scope                 String?
-  password              String?
-  createdAt             TimestamptzString @default(now())
-  updatedAt             TimestamptzString
+  scope                String?
+  password             String?
+  createdAt            TimestamptzString @default(now())
+  updatedAt            TimestamptzString
 
-  user                  User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId], map: "account_userId_idx")
 }
 
 model Verification {
-  id         String    @id
+  id         String   @id
   identifier String
   value      String
   expiresAt  TimestamptzString
@@ -57,4 +66,378 @@ model Verification {
   updatedAt  TimestamptzString @default(now())
 
   @@index([identifier], map: "verification_identifier_idx")
+}
+
+
+// Eblank Models
+enum UserType {
+  CUSTOMER
+  STAFF
+}
+
+model Role {
+  id          String   @id
+  key         String   @unique
+  name        String
+  description String?
+  users       UserRole[]
+  createdAt   TimestamptzString @default(now())
+  updatedAt   temporal.updatedAtString()
+}
+
+model UserRole {
+  userId    String
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId    String
+  role      Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt TimestamptzString @default(now())
+
+  @@id([userId, roleId])
+  @@index([roleId])
+}
+
+model Address {
+  id           String   @id
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  country      String
+  state        String
+  city         String
+  municipality String?
+  neighborhood String?
+  postalCode   String
+  street       String
+  exteriorNo   String
+  interiorNo   String?
+  reference    String?
+  isDefault    Boolean  @default(false)
+  createdAt    TimestamptzString @default(now())
+  updatedAt    temporal.updatedAtString()
+
+  orders Order[]
+
+  @@index([userId])
+}
+
+model Category {
+  id          String   @id
+  name        String
+  slug        String   @unique
+  description String?
+  image       String?
+  parentId    String?
+  parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Category[] @relation("CategoryHierarchy")
+  products    Product[]
+  createdAt   TimestamptzString @default(now())
+  updatedAt   temporal.updatedAtString()
+
+  @@index([parentId])
+}
+
+model Product {
+  id          String   @id
+  name        String
+  slug        String   @unique
+  description String?
+  sku         String?  @unique
+  price       Decimal
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  image       String?
+  active      Boolean  @default(true)
+  variants    ProductVariant[]
+  orderItems  OrderItem[]
+  createdAt   TimestamptzString @default(now())
+  updatedAt   temporal.updatedAtString()
+
+  @@index([categoryId])
+}
+
+model ProductVariant {
+  id        String   @id
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name      String
+  sku       String?  @unique
+  price     Decimal?
+  stock     Int @default(0)
+  image     String?
+  active    Boolean  @default(true)
+  orderItems OrderItem[]
+  createdAt TimestamptzString @default(now())
+  updatedAt temporal.updatedAtString()
+
+  @@index([productId])
+}
+
+model Order {
+  id              String        @id
+  number          String        @unique
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  addressId       String?
+  address         Address?      @relation(fields: [addressId], references: [id], onDelete: SetNull)
+
+  status          OrderStatus   @default(PENDING)
+  subtotal        Decimal
+  shippingCost    Decimal       @default("0")
+  discount        Decimal       @default("0")
+  tax             Decimal       @default("0")
+  total           Decimal
+
+  customerName    String
+  customerEmail   String
+  customerPhone   String?
+
+  shippingCountry      String
+  shippingState        String
+  shippingCity         String
+  shippingMunicipality String?
+  shippingNeighborhood String?
+  shippingPostalCode   String
+  shippingStreet       String
+  shippingExteriorNo   String
+  shippingInteriorNo   String?
+  shippingReference    String?
+
+  notes           String?
+
+  items           OrderItem[]
+  payments        Payment[]
+  shipments       Shipment[]
+  returns         ReturnRequest[]
+  tickets         SupportTicket[]
+
+  createdAt       TimestamptzString @default(now())
+  updatedAt       temporal.updatedAtString()
+
+  @@index([userId])
+  @@index([addressId])
+  @@index([status])
+}
+
+model OrderItem {
+  id         String          @id
+  orderId    String
+  order      Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  variantId  String?
+  variant    ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  productName String
+  variantName String?
+  sku         String?
+  unitPrice   Decimal
+  quantity    Int
+  subtotal    Decimal
+
+  returnItems ReturnItem[]
+
+  createdAt TimestamptzString @default(now())
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([variantId])
+}
+
+model Payment {
+  id          String        @id
+  orderId     String
+  order       Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  provider    String
+  method      String
+  reference   String?
+
+  amount      Decimal
+  currency    String
+
+  status      PaymentStatus @default(PENDING)
+
+  paidAt      TimestamptzString?
+  failedAt    TimestamptzString?
+  refundedAt  TimestamptzString?
+
+  metadata    String?
+
+  createdAt   TimestamptzString @default(now())
+  updatedAt   temporal.updatedAtString()
+
+  @@index([orderId])
+  @@index([status])
+  @@index([reference])
+}
+
+model Shipment {
+  id              String         @id
+  orderId         String
+  order           Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  carrier         String?
+  service         String?
+  trackingNumber  String?
+  trackingUrl     String?
+  labelUrl        String?
+
+  cost            Decimal        @default("0")
+  status          ShipmentStatus @default(PENDING)
+
+  shippedAt       TimestamptzString?
+  deliveredAt     TimestamptzString?
+
+  notes           String?
+
+  createdAt       TimestamptzString @default(now())
+  updatedAt       temporal.updatedAtString()
+
+  @@index([orderId])
+  @@index([trackingNumber])
+  @@index([status])
+}
+
+model ReturnRequest {
+  id          String         @id
+  orderId     String
+  order       Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  status      ReturnStatus   @default(PENDING)
+  reason      String
+  description String?
+
+  resolution  ReturnResolution?
+
+  requestedAt TimestamptzString @default(now())
+  approvedAt  TimestamptzString?
+  receivedAt  TimestamptzString?
+  completedAt TimestamptzString?
+
+  items       ReturnItem[]
+  tickets     SupportTicket[]
+
+  createdAt   TimestamptzString @default(now())
+  updatedAt   temporal.updatedAtString()
+
+  @@index([orderId])
+  @@index([status])
+}
+
+model ReturnItem {
+  id              String        @id
+  returnRequestId String
+  returnRequest   ReturnRequest @relation(fields: [returnRequestId], references: [id], onDelete: Cascade)
+
+  orderItemId     String
+  orderItem       OrderItem     @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+
+  quantity        Int
+  reason          String?
+  condition       String?
+
+  createdAt       TimestamptzString @default(now())
+
+  @@index([returnRequestId])
+  @@index([orderItemId])
+}
+
+model SupportTicket {
+  id             String         @id
+  userId         String
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  orderId        String?
+  order          Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  returnRequestId String?
+  returnRequest   ReturnRequest? @relation(fields: [returnRequestId], references: [id], onDelete: SetNull)
+
+  subject        String
+  status         TicketStatus   @default(OPEN)
+  priority       TicketPriority @default(NORMAL)
+
+  messages       SupportMessage[]
+
+  createdAt      TimestamptzString @default(now())
+  updatedAt      temporal.updatedAtString()
+  closedAt       TimestamptzString?
+
+  @@index([userId])
+  @@index([orderId])
+  @@index([returnRequestId])
+  @@index([status])
+}
+
+model SupportMessage {
+  id        String        @id
+  ticketId  String
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  senderId  String
+  content   String
+
+  createdAt TimestamptzString @default(now())
+
+  @@index([ticketId])
+  @@index([senderId])
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  COMPLETED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum ShipmentStatus {
+  PENDING
+  PREPARING
+  SHIPPED
+  IN_TRANSIT
+  DELIVERED
+  RETURNED
+  CANCELLED
+}
+
+enum ReturnStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  RECEIVED
+  PROCESSING
+  COMPLETED
+  CANCELLED
+}
+
+enum ReturnResolution {
+  REFUND
+  EXCHANGE
+  STORE_CREDIT
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
 }
