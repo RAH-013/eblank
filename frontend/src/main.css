@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+
+  --brand-color: #0879b9;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --brand-color: #505102;
+}
+
+button {
+  cursor: pointer;
+}
